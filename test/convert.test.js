@@ -89,3 +89,79 @@ withTempProject((projectRoot) => {
 
   console.log('ok - smoke test passed');
 });
+
+// Clone coupling is symmetric, so a pair must yield exactly one edge no matter
+// which side jscpd happened to report first. The converter orders each pair
+// lexicographically; without that, the same two files would produce two
+// contradictory edges and CodeCharta would draw the pair twice.
+withTempProject((projectRoot) => {
+  const lines = Array.from({ length: 100 }, (_, i) => `line ${i + 1}`).join('\n') + '\n';
+  const zebra = writeFile(projectRoot, 'src/Zebra.java', lines);
+  const alpha = writeFile(projectRoot, 'src/Alpha.java', lines);
+  const middle = writeFile(projectRoot, 'src/Middle.java', lines);
+
+  const clone = (first, firstStart, second, secondStart) => ({
+    format: 'java',
+    firstFile: { name: first, start: firstStart, end: firstStart + 9 },
+    secondFile: { name: second, start: secondStart, end: secondStart + 9 },
+    lines: 10,
+    tokens: 40,
+  });
+
+  const report = {
+    duplicates: [
+      // same pair, reported in both orders
+      clone(zebra, 10, alpha, 5),
+      clone(alpha, 40, zebra, 60),
+      // a third file that sorts between the other two
+      clone(zebra, 80, middle, 1),
+      clone(middle, 30, alpha, 90),
+    ],
+    statistics: {},
+  };
+
+  const reportPath = writeFile(projectRoot, 'reports/jscpd-report.json', JSON.stringify(report));
+  const outputPath = path.join(projectRoot, 'reports/out.cc.json');
+
+  execFileSync(
+    process.execPath,
+    [CLI_PATH, reportPath, '--output', outputPath, '--project-root', projectRoot],
+    { stdio: 'inherit' }
+  );
+
+  const edges = JSON.parse(fs.readFileSync(outputPath, 'utf8')).data.edges;
+  const pairs = edges.map((e) => `${e.fromNodeName} ${e.toNodeName}`);
+
+  assert.deepStrictEqual(
+    pairs.slice().sort(),
+    [
+      '/root/src/Alpha.java /root/src/Middle.java',
+      '/root/src/Alpha.java /root/src/Zebra.java',
+      '/root/src/Middle.java /root/src/Zebra.java',
+    ],
+    'each pair must appear exactly once, always with the lexicographically smaller path as source'
+  );
+
+  for (const edge of edges) {
+    assert.ok(edge.fromNodeName < edge.toNodeName, `edge ${edge.fromNodeName} -> ${edge.toNodeName} is not ordered`);
+  }
+
+  const alphaZebra = edges.find((e) => e.toNodeName.endsWith('Zebra.java') && e.fromNodeName.endsWith('Alpha.java'));
+  assert.strictEqual(
+    alphaZebra.attributes.shared_clone_pair_count,
+    2,
+    'both clone pairs of the same file pair must aggregate onto one edge'
+  );
+
+  // Zebra is in 3 clone pairs but shares them with only 2 other files - that
+  // difference is the whole point of clone_partner_count.
+  const written = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+  const src = written.data.nodes[0].children.find((c) => c.name === 'src');
+  const zebraNode = src.children.find((c) => c.name === 'Zebra.java');
+  assert.strictEqual(zebraNode.attributes.clone_pair_count, 3);
+  assert.strictEqual(zebraNode.attributes.clone_partner_count, 2);
+  const middleNode = src.children.find((c) => c.name === 'Middle.java');
+  assert.strictEqual(middleNode.attributes.clone_partner_count, 2);
+
+  console.log('ok - one edge per file pair, ordered lexicographically');
+});
