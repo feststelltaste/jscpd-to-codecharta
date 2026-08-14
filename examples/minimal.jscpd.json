@@ -5,6 +5,6 @@
   "format": ["java", "javascript"],
   "pattern": "**/*.{java,js}",
   "reporters": ["console", "json"],
-  "output": "reports/jscpd",
+  "output": "reports",
   "absolute": true
 }

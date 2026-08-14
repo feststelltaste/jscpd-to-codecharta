@@ -54,8 +54,8 @@ withTempProject((projectRoot) => {
     statistics: {},
   };
 
-  const reportPath = writeFile(projectRoot, 'reports/jscpd/jscpd-report.json', JSON.stringify(report));
-  const outputPath = path.join(projectRoot, 'reports/jscpd/codecharta-clones.cc.json');
+  const reportPath = writeFile(projectRoot, 'reports/jscpd-report.json', JSON.stringify(report));
+  const outputPath = path.join(projectRoot, 'reports/codecharta-clones.cc.json');
 
   execFileSync(
     process.execPath,

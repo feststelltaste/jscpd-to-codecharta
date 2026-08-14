@@ -36,10 +36,10 @@ function printHelp() {
 Convert a jscpd JSON report to CodeCharta 1.3 cc.json.
 
 Arguments:
-  report                    jscpd JSON report (default: reports/jscpd/jscpd-report.json)
+  report                    jscpd JSON report (default: reports/jscpd-report.json)
 
 Options:
-  -o, --output <path>       CodeCharta output file (default: reports/jscpd/codecharta-clones.cc.json)
+  -o, --output <path>       CodeCharta output file (default: reports/codecharta-clones.cc.json)
   --project-root <path>     source repository root used to create /root/... CodeCharta
                             paths (default: current directory)
   --project-name <name>     CodeCharta project name (default: "<project-root name> clones")
@@ -94,8 +94,8 @@ function parseArgs(argv) {
     throw new ConversionError(`Unexpected extra argument: ${positional[1]}`);
   }
 
-  args.report = positional[0] || 'reports/jscpd/jscpd-report.json';
-  args.output = args.output || 'reports/jscpd/codecharta-clones.cc.json';
+  args.report = positional[0] || 'reports/jscpd-report.json';
+  args.output = args.output || 'reports/codecharta-clones.cc.json';
   args.projectRoot = args.projectRoot || process.cwd();
   return args;
 }

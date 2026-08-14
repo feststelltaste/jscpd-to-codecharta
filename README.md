@@ -59,12 +59,12 @@ npm install --save-dev /path/to/jscpd-to-codecharta
 
 ```bash
 # 1. Run jscpd, keep absolute paths, ask for the json reporter
-jscpd --config .jscpd.json --reporters json --output reports/jscpd src
+jscpd --config .jscpd.json --reporters json --output reports src
 
 # 2. Convert the report - run from the same directory as jscpd (see
 #    "Merging maps" below for why that matters)
-node jscpd-to-cc.js reports/jscpd/jscpd-report.json \
-  --output reports/jscpd/codecharta-clones.cc.json \
+node jscpd-to-cc.js reports/jscpd-report.json \
+  --output reports/codecharta-clones.cc.json \
   --project-root .
 ```
 
@@ -75,34 +75,34 @@ see "Merging maps" for why. `ccsh` comes from `npm install -g
 codecharta-analysis`.
 
 ```bash
-mkdir -p reports/jscpd
+mkdir -p reports
 
 # 1. Detect clones
-jscpd --config .jscpd.json --reporters json --output reports/jscpd src
+jscpd --config .jscpd.json --reporters json --output reports src
 
 # 2. Convert to CodeCharta
-node jscpd-to-cc.js reports/jscpd/jscpd-report.json \
-  --output reports/jscpd/codecharta-clones.cc.json --project-root .
+node jscpd-to-cc.js reports/jscpd-report.json \
+  --output reports/codecharta-clones.cc.json --project-root .
 
 # 3. Extract source metrics (size, complexity, ...)
-ccsh unifiedparser --not-compressed --output-file=reports/jscpd/source.cc.json .
+ccsh unifiedparser --not-compressed --output-file=reports/source.cc.json .
 
 # 4. Merge both maps into one
-ccsh merge --not-compressed --output-file=reports/jscpd/complete.cc.json \
-  reports/jscpd/source.cc.json reports/jscpd/codecharta-clones.cc.json
+ccsh merge --not-compressed --output-file=reports/complete.cc.json \
+  reports/source.cc.json reports/codecharta-clones.cc.json
 
 # 5. Validate
-ccsh check reports/jscpd/complete.cc.json
+ccsh check reports/complete.cc.json
 ```
 
 ```
-Usage: jscpd-to-codecharta [report] [options]
+Usage: jscpd-to-cc [report] [options]
 
 Arguments:
-  report                    jscpd JSON report (default: reports/jscpd/jscpd-report.json)
+  report                    jscpd JSON report (default: reports/jscpd-report.json)
 
 Options:
-  -o, --output <path>       CodeCharta output file (default: reports/jscpd/codecharta-clones.cc.json)
+  -o, --output <path>       CodeCharta output file (default: reports/codecharta-clones.cc.json)
   --project-root <path>     source repository root used to create /root/... CodeCharta
                             paths (default: current directory)
   --project-name <name>     CodeCharta project name (default: "<project-root name> clones")
@@ -145,8 +145,8 @@ Once you have a `.cc.json`:
 - **Visualize directly**: upload it at the [CodeCharta web
   visualization](https://codecharta.com/) - no install needed.
 - **Local viewer**: `npm install -g codecharta-analysis`, then
-  `ccsh gui reports/jscpd/codecharta-clones.cc.json`.
-- **Validate** a map: `ccsh check reports/jscpd/codecharta-clones.cc.json`.
+  `ccsh gui reports/codecharta-clones.cc.json`.
+- **Validate** a map: `ccsh check reports/codecharta-clones.cc.json`.
 
 ### Merging maps - making sure the paths line up
 
@@ -160,7 +160,7 @@ the **same root**:
 |------------------------------|----------------------------------------------------|
 | `ccsh unifiedparser <path>`  | the `<path>` argument (typically `.` from repo root)|
 | `ccsh gitlogparser`          | the git repository root (`git log` paths always are)|
-| `jscpd-to-cc.js`     | `--project-root` (default: current directory)       |
+| `jscpd-to-cc.js`             | `--project-root` (default: current directory)       |
 
 Practical rule: **run all three from the same directory** (your repository
 root) and pass `--project-root .` explicitly. Verified end-to-end: running
@@ -170,9 +170,9 @@ and N were merged` - i.e. every file's clone attributes land on the exact
 same node as its source metrics, and clone-coupling edges are preserved.
 
 ```bash
-ccsh merge --not-compressed --output-file=complete.cc.json \
-  reports/jscpd/source.cc.json \
-  reports/jscpd/codecharta-clones.cc.json
+ccsh merge --not-compressed --output-file=reports/complete.cc.json \
+  reports/source.cc.json \
+  reports/codecharta-clones.cc.json
 ```
 
 ### Metrics this tool produces
