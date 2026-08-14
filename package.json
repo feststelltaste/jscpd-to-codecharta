@@ -1,10 +1,12 @@
 {
   "name": "jscpd-to-codecharta",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Convert a jscpd JSON report to a mergeable CodeCharta 1.3 cc.json file. Verified against jscpd v5 (Rust) - v5 has no reporter plugin mechanism, so this consumes its json reporter output instead.",
   "main": "jscpd-to-cc.js",
   "bin": {
-    "jscpd-to-cc": "./jscpd-to-cc.js"
+    "jscpd-to-cc": "./jscpd-to-cc.js",
+    "fix-merged-edges": "./fix-merged-edges.js",
+    "strip-edges": "./strip-edges.js"
   },
   "license": "MIT",
   "private": true,
@@ -17,10 +19,13 @@
     "url": "https://github.com/feststelltaste/jscpd-to-codecharta/issues"
   },
   "scripts": {
-    "test": "node test/convert.test.js"
+    "test": "node test/convert.test.js && node test/fix-merged-edges.test.js && node test/strip-edges.test.js && node test/pipeline-sync.test.js"
   },
   "files": [
     "jscpd-to-cc.js",
+    "fix-merged-edges.js",
+    "strip-edges.js",
+    "jscpd-to-cc-pipeline.sh",
     "README.md",
     "LICENSE"
   ],

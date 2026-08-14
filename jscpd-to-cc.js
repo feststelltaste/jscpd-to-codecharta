@@ -217,11 +217,21 @@ function collectCloneData(duplicates, projectRoot) {
     for (const { sourceFile, interval } of [first, second]) {
       let fileData = files.get(sourceFile.codecharta_path);
       if (!fileData) {
-        fileData = { sourceFile, intervals: new Set(), clonePairIds: new Set() };
+        fileData = { sourceFile, intervals: new Set(), clonePairIds: new Set(), partners: new Set() };
         files.set(sourceFile.codecharta_path, fileData);
       }
       fileData.intervals.add(encodeInterval(interval[0], interval[1]));
       fileData.clonePairIds.add(cloneId);
+    }
+
+    // How many *other* files a file shares code with - its degree in the clone
+    // graph. Several clone pairs between the same two files count once, and a
+    // clone jscpd found inside a single file adds no partner at all.
+    const firstPath = first.sourceFile.codecharta_path;
+    const secondPath = second.sourceFile.codecharta_path;
+    if (firstPath !== secondPath) {
+      files.get(firstPath).partners.add(secondPath);
+      files.get(secondPath).partners.add(firstPath);
     }
 
     const [from, to] =
@@ -303,6 +313,7 @@ function buildFileAttributes(files) {
       duplicated_lines: duplicatedLines,
       clone_instance_count: fileData.intervals.size,
       clone_pair_count: fileData.clonePairIds.size,
+      clone_partner_count: fileData.partners.size,
     });
   }
 
@@ -405,6 +416,7 @@ function buildCodechartaData(projectName, nodes, edges) {
         duplicated_lines: 'absolute',
         clone_instance_count: 'absolute',
         clone_pair_count: 'absolute',
+        clone_partner_count: 'absolute',
       },
       edges: {
         clone_coupling: 'relative',
@@ -426,6 +438,10 @@ function buildCodechartaData(projectName, nodes, edges) {
         'Number of unique cloned line ranges in the file'
       ),
       clone_pair_count: descriptor('Clone Pair Count', 'Number of jscpd clone pairs involving the file'),
+      clone_partner_count: descriptor(
+        'Clone Partner Count',
+        'Number of other files this file shares at least one clone with; several clone pairs between the same two files count once'
+      ),
       clone_coupling: descriptor(
         'Clone Coupling',
         'Shared cloned lines divided by the line count of the smaller file (0 to 1)'
