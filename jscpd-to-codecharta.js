@@ -1,30 +1,25 @@
+#!/usr/bin/env node
 'use strict';
 
 /**
- * jscpd reporter that writes clone metrics directly as a CodeCharta 1.3
- * cc.json file - no intermediate jscpd-report.json round-trip.
+ * Convert a jscpd JSON report to a mergeable CodeCharta 1.3 cc.json file.
  *
- * jscpd resolves a reporter name that isn't one of its built-ins by trying
- * `require('@jscpd/<name>-reporter').default` and then
- * `require('jscpd-<name>-reporter').default` (see apps/jscpd/src/init/reporters.ts
- * in the jscpd repo). That's why this package must be installed under the
- * exact name `jscpd-codecharta-reporter` for `"reporters": ["codecharta"]`
- * in .jscpd.json to resolve it automatically.
+ * The generated CodeCharta file contains clone metrics on file leaves and
+ * one symmetric, aggregated edge for every pair of files that share clone
+ * blocks.
  *
- * jscpd calls `new ReporterClass(options).report(clones, statistic)`, where
- * `options` is the fully resolved IOptions object (see @jscpd/core) and
- * `clones` is an array of IClone:
- *   {
- *     format: string,
- *     duplicationA: { sourceId: string, start: {line}, end: {line}, ... },
- *     duplicationB: { sourceId: string, start: {line}, end: {line}, ... },
- *   }
- * This differs from the shape of jscpd's own JSON report (`firstFile`/
- * `secondFile` with plain `name`/`start`/`end`) - that shape is produced by
- * jscpd's built-in JsonReporter, not by jscpd itself, so we adapt from
- * IClone directly here (see `toClonePair` below).
+ * Why a separate conversion step and not a jscpd reporter plugin: jscpd v5
+ * (the current, Rust-based release) has no plugin/extension mechanism at
+ * all - `create_reporter()` in rust/crates/cpd-reporter matches reporter
+ * names against a fixed, compiled-in list and silently returns nothing for
+ * anything else. The only supported extension point is consuming one of
+ * its 13 built-in reporters' output - `json` here - and post-processing it,
+ * which is exactly what this script does. Verified against jscpd 5.0.15:
+ * the `duplicates[].firstFile/secondFile.{name,start,end}` shape is
+ * unchanged from earlier (TypeScript-based) jscpd versions.
  *
- * Zero runtime dependencies: only Node.js built-ins (fs, path, crypto).
+ * Zero runtime dependencies on purpose: only Node.js built-ins (fs, path,
+ * crypto) are used, so this file can be dropped into any project as-is.
  */
 
 const fs = require('fs');
@@ -32,29 +27,107 @@ const path = require('path');
 const crypto = require('crypto');
 
 const JSCPD_DOCUMENTATION = 'https://jscpd.dev/';
-const DEFAULT_OUTPUT_FILENAME = 'codecharta-clones.cc.json';
 
 class ConversionError extends Error {}
 
-// ---------------------------------------------------------------------------
-// jscpd IClone[] -> normalized clone pairs
-// ---------------------------------------------------------------------------
+function printHelp() {
+  console.log(`Usage: jscpd-to-codecharta [report] [options]
 
-function toClonePair(clone, cloneIndex) {
-  const a = clone && clone.duplicationA;
-  const b = clone && clone.duplicationB;
-  if (!a || !b) {
-    throw new ConversionError(`Clone ${cloneIndex + 1} is missing duplicationA/duplicationB`);
-  }
-  return {
-    first: { name: a.sourceId, start: a.start && a.start.line, end: a.end && a.end.line },
-    second: { name: b.sourceId, start: b.start && b.start.line, end: b.end && b.end.line },
-  };
+Convert a jscpd JSON report to CodeCharta 1.3 cc.json.
+
+Arguments:
+  report                    jscpd JSON report (default: reports/jscpd/jscpd-report.json)
+
+Options:
+  -o, --output <path>       CodeCharta output file (default: reports/jscpd/codecharta-clones.cc.json)
+  --project-root <path>     source repository root used to create /root/... CodeCharta
+                            paths (default: current directory)
+  --project-name <name>     CodeCharta project name (default: "<project-root name> clones")
+  -h, --help                show this help
+`);
 }
 
-// ---------------------------------------------------------------------------
-// Conversion core (clone pairs -> CodeCharta 1.3 document)
-// ---------------------------------------------------------------------------
+function parseArgs(argv) {
+  const args = {
+    report: undefined,
+    output: undefined,
+    projectRoot: undefined,
+    projectName: undefined,
+  };
+  const positional = [];
+
+  const takeValue = (option, iRef) => {
+    iRef.i += 1;
+    const value = argv[iRef.i];
+    if (value === undefined) {
+      throw new ConversionError(`Option ${option} requires a value`);
+    }
+    return value;
+  };
+
+  const iRef = { i: 0 };
+  for (; iRef.i < argv.length; iRef.i += 1) {
+    const arg = argv[iRef.i];
+    if (arg === '-h' || arg === '--help') {
+      printHelp();
+      process.exit(0);
+    } else if (arg === '-o' || arg === '--output') {
+      args.output = takeValue(arg, iRef);
+    } else if (arg.startsWith('--output=')) {
+      args.output = arg.slice('--output='.length);
+    } else if (arg === '--project-root') {
+      args.projectRoot = takeValue(arg, iRef);
+    } else if (arg.startsWith('--project-root=')) {
+      args.projectRoot = arg.slice('--project-root='.length);
+    } else if (arg === '--project-name') {
+      args.projectName = takeValue(arg, iRef);
+    } else if (arg.startsWith('--project-name=')) {
+      args.projectName = arg.slice('--project-name='.length);
+    } else if (arg.startsWith('-')) {
+      throw new ConversionError(`Unknown option: ${arg}`);
+    } else {
+      positional.push(arg);
+    }
+  }
+
+  if (positional.length > 1) {
+    throw new ConversionError(`Unexpected extra argument: ${positional[1]}`);
+  }
+
+  args.report = positional[0] || 'reports/jscpd/jscpd-report.json';
+  args.output = args.output || 'reports/jscpd/codecharta-clones.cc.json';
+  args.projectRoot = args.projectRoot || process.cwd();
+  return args;
+}
+
+function readReport(reportPath) {
+  let raw;
+  try {
+    raw = fs.readFileSync(reportPath, 'utf8');
+  } catch (error) {
+    throw new ConversionError(`Cannot read ${reportPath}: ${error.message}`);
+  }
+
+  let document;
+  try {
+    document = JSON.parse(raw);
+  } catch (error) {
+    throw new ConversionError(`Invalid JSON in ${reportPath}: ${error.message}`);
+  }
+
+  const duplicates = document && typeof document === 'object' ? document.duplicates : undefined;
+  if (!Array.isArray(duplicates)) {
+    throw new ConversionError(`${reportPath} does not contain a jscpd 'duplicates' array`);
+  }
+
+  duplicates.forEach((clone, index) => {
+    if (typeof clone !== 'object' || clone === null || Array.isArray(clone)) {
+      throw new ConversionError(`Clone ${index + 1} is not a JSON object`);
+    }
+  });
+
+  return duplicates;
+}
 
 function parseLine(value, fieldName, cloneId) {
   const line = typeof value === 'number' ? value : Number(value);
@@ -67,9 +140,9 @@ function parseLine(value, fieldName, cloneId) {
   return line;
 }
 
-// A resolved source file. `codecharta_path` uniquely identifies the file and
-// is used as the map key everywhere below.
-function resolveSourceFile(value, projectRoot, cloneId, sourceFileCache) {
+// A resolved source file. `codecharta_path` uniquely identifies the file
+// (used as the map key everywhere below).
+function parseSourceFile(value, projectRoot, cloneId, sourceFileCache) {
   if (typeof value !== 'string' || !value.trim()) {
     throw new ConversionError(`Clone ${cloneId} has an empty source-file name`);
   }
@@ -96,7 +169,7 @@ function resolveSourceFile(value, projectRoot, cloneId, sourceFileCache) {
   if (!isFile) {
     throw new ConversionError(
       `Clone ${cloneId} source file does not exist: ${fileSystemPath}. ` +
-        'Set reportersOptions.codecharta.projectRoot in .jscpd.json if jscpd runs from a different directory.'
+        'Regenerate the jscpd report with "absolute": true, or set --project-root.'
     );
   }
 
@@ -107,13 +180,14 @@ function resolveSourceFile(value, projectRoot, cloneId, sourceFileCache) {
   return sourceFile;
 }
 
-function resolveSide(side, projectRoot, cloneId, sourceFileCache) {
-  if (typeof side !== 'object' || side === null) {
+function parseLocation(value, projectRoot, cloneId, sourceFileCache) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new ConversionError(`Clone ${cloneId} has a missing file location`);
   }
-  const sourceFile = resolveSourceFile(side.name, projectRoot, cloneId, sourceFileCache);
-  const start = parseLine(side.start, 'start line', cloneId);
-  const end = parseLine(side.end, 'end line', cloneId);
+
+  const sourceFile = parseSourceFile(value.name, projectRoot, cloneId, sourceFileCache);
+  const start = parseLine(value.start, 'start line', cloneId);
+  const end = parseLine(value.end, 'end line', cloneId);
   if (end < start) {
     throw new ConversionError(`Clone ${cloneId} ends before it starts: ${start}-${end}`);
   }
@@ -128,18 +202,17 @@ function decodeInterval(encoded) {
   return encoded.split(':').map(Number);
 }
 
-function collectCloneData(clonePairs, projectRoot) {
+function collectCloneData(duplicates, projectRoot) {
   // files:  codecharta_path -> { sourceFile, intervals: Set<"start:end">, clonePairIds: Set<number> }
   // edges:  "fromPath toPath" -> { fromFile, toFile, fromIntervals, toIntervals, clonePairIds }
   const files = new Map();
   const edges = new Map();
   const sourceFileCache = new Map();
 
-  let cloneId = 0;
-  for (const clonePair of clonePairs) {
-    cloneId += 1;
-    const first = resolveSide(clonePair.first, projectRoot, cloneId, sourceFileCache);
-    const second = resolveSide(clonePair.second, projectRoot, cloneId, sourceFileCache);
+  duplicates.forEach((clone, index) => {
+    const cloneId = index + 1;
+    const first = parseLocation(clone.firstFile, projectRoot, cloneId, sourceFileCache);
+    const second = parseLocation(clone.secondFile, projectRoot, cloneId, sourceFileCache);
 
     for (const { sourceFile, interval } of [first, second]) {
       let fileData = files.get(sourceFile.codecharta_path);
@@ -171,13 +244,13 @@ function collectCloneData(clonePairs, projectRoot) {
     edgeData.fromIntervals.add(encodeInterval(from.interval[0], from.interval[1]));
     edgeData.toIntervals.add(encodeInterval(to.interval[0], to.interval[1]));
     edgeData.clonePairIds.add(cloneId);
-  }
+  });
 
   return { files, edges };
 }
 
 function countLines(filePath) {
-  // Counts a final line that does not end in a newline.
+  // Counts a final line that does not end in a newline, same as jscpd itself.
   const content = fs.readFileSync(filePath);
   if (content.length === 0) return 0;
   let count = 0;
@@ -381,57 +454,46 @@ function writeOutput(outputPath, document) {
   fs.writeFileSync(outputPath, JSON.stringify(document, null, 2) + '\n', 'utf8');
 }
 
-function convert(clonePairs, { projectRoot, projectName }) {
-  const { files, edges: edgeData } = collectCloneData(clonePairs, projectRoot);
-  const { attributes: fileAttributes, lineCounts } = buildFileAttributes(files);
-  const nodes = buildNodes(files, fileAttributes);
-  const edges = buildEdges(edgeData, lineCounts);
-  const data = buildCodechartaData(projectName, nodes, edges);
-  return {
-    document: wrapWithChecksum(data),
-    fileCount: fileAttributes.size,
-    edgeCount: edges.length,
-  };
-}
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const reportPath = path.resolve(args.report);
+  const outputPath = path.resolve(args.output);
+  const projectRoot = path.resolve(args.projectRoot);
+  const projectName = args.projectName || `${path.basename(projectRoot)} clones`;
 
-// ---------------------------------------------------------------------------
-// IReporter
-// ---------------------------------------------------------------------------
-
-class CodechartaReporter {
-  constructor(options) {
-    this.options = options || {};
-  }
-
-  // Called by jscpd as: new CodechartaReporter(options).report(clones, statistic)
-  report(clones) {
-    const reporterOptions = (this.options.reportersOptions && this.options.reportersOptions.codecharta) || {};
-    const projectRoot = path.resolve(reporterOptions.projectRoot || process.cwd());
-    const projectName = reporterOptions.projectName || `${path.basename(projectRoot)} clones`;
-    const outputPath = path.resolve(
-      reporterOptions.output || path.join(this.options.output || '.', DEFAULT_OUTPUT_FILENAME)
+  try {
+    const duplicates = readReport(reportPath);
+    const { files, edges: edgeData } = collectCloneData(duplicates, projectRoot);
+    const { attributes: fileAttributes, lineCounts } = buildFileAttributes(files);
+    const nodes = buildNodes(files, fileAttributes);
+    const edges = buildEdges(edgeData, lineCounts);
+    const data = buildCodechartaData(projectName, nodes, edges);
+    writeOutput(outputPath, wrapWithChecksum(data));
+    console.log(
+      `Wrote ${fileAttributes.size} clone-annotated files and ${edges.length} clone-coupling edges to ${outputPath}`
     );
-
-    try {
-      const clonePairs = (clones || []).map(toClonePair);
-      const { document, fileCount, edgeCount } = convert(clonePairs, { projectRoot, projectName });
-      writeOutput(outputPath, document);
-      console.log(
-        `[jscpd-codecharta-reporter] wrote ${fileCount} clone-annotated files and ${edgeCount} clone-coupling edges to ${outputPath}`
-      );
-    } catch (error) {
-      if (error instanceof ConversionError) {
-        console.error(`[jscpd-codecharta-reporter] error: ${error.message}`);
-        return;
-      }
-      throw error;
+    return 0;
+  } catch (error) {
+    if (error instanceof ConversionError || error.code === 'ENOENT' || error.code === 'EACCES') {
+      console.error(`error: ${error.message}`);
+      return 2;
     }
+    throw error;
   }
 }
 
-module.exports = CodechartaReporter;
-module.exports.default = CodechartaReporter;
-module.exports.CodechartaReporter = CodechartaReporter;
-module.exports.ConversionError = ConversionError;
-// Exported for the test suite; not part of the public API.
-module.exports._internals = { toClonePair, convert, collectCloneData };
+if (require.main === module) {
+  process.exit(main());
+}
+
+module.exports = {
+  ConversionError,
+  parseArgs,
+  readReport,
+  collectCloneData,
+  buildFileAttributes,
+  buildNodes,
+  buildEdges,
+  buildCodechartaData,
+  wrapWithChecksum,
+};

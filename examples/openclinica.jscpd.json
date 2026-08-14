@@ -1,0 +1,26 @@
+{
+  "minLines": 5,
+  "minTokens": 50,
+  "maxLines": 1000,
+  "mode": "weak",
+  "format": ["java", "javascript", "markup", "properties"],
+  "pattern": "**/*.{java,js,xml,properties,html,jsp}",
+  "reporters": ["console", "json", "html"],
+  "output": "reports/jscpd",
+  "absolute": true,
+  "noTips": true,
+  "ignore": [
+    "**/target/**",
+    "**/node_modules/**",
+    "**/*.min.js"
+  ],
+  "ignorePattern": [
+    "(?ms)^    (?:@Override[\\t ]*\\r?\\n    )?public[\\t ]+boolean[\\t ]+equals[\\t ]*\\([\\t ]*(?:final[\\t ]+)?Object[\\t ]+[A-Za-z_$][A-Za-z0-9_$]*[\\t ]*\\)[\\t ]*\\{.*?^    \\}",
+    "(?ms)^\\t(?:@Override[\\t ]*\\r?\\n\\t)?public[\\t ]+boolean[\\t ]+equals[\\t ]*\\([\\t ]*(?:final[\\t ]+)?Object[\\t ]+[A-Za-z_$][A-Za-z0-9_$]*[\\t ]*\\)[\\t ]*\\{.*?^\\t\\}",
+    "(?ms)^\\t\\t(?:@Override[\\t ]*\\r?\\n\\t\\t)?public[\\t ]+boolean[\\t ]+equals[\\t ]*\\([\\t ]*(?:final[\\t ]+)?Object[\\t ]+[A-Za-z_$][A-Za-z0-9_$]*[\\t ]*\\)[\\t ]*\\{.*?^\\t\\t\\}",
+    "(?ms)^    (?:@Override[\\t ]*\\r?\\n    )?public[\\t ]+int[\\t ]+hashCode[\\t ]*\\([\\t ]*\\)[\\t ]*\\{.*?^    \\}",
+    "(?ms)^\\t(?:@Override[\\t ]*\\r?\\n\\t)?public[\\t ]+int[\\t ]+hashCode[\\t ]*\\([\\t ]*\\)[\\t ]*\\{.*?^\\t\\}",
+    "(?ms)^\\t\\t(?:@Override[\\t ]*\\r?\\n\\t\\t)?public[\\t ]+int[\\t ]+hashCode[\\t ]*\\([\\t ]*\\)[\\t ]*\\{.*?^\\t\\t\\}",
+    "(?m)^\\s*import[\\t ]+(?:static[\\t ]+)?[A-Za-z_$][\\w.$]*(?:\\.\\*)?;[\\t ]*$"
+  ]
+}

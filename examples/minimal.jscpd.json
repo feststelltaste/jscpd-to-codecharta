@@ -1,0 +1,10 @@
+{
+  "minLines": 5,
+  "minTokens": 50,
+  "mode": "weak",
+  "format": ["java", "javascript"],
+  "pattern": "**/*.{java,js}",
+  "reporters": ["console", "json"],
+  "output": "reports/jscpd",
+  "absolute": true
+}

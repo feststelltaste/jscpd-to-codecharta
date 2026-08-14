@@ -1,9 +1,7 @@
-# jscpd-codecharta-reporter
+# jscpd-to-codecharta
 
-A [jscpd](https://jscpd.dev/) reporter that writes detected code clones
-directly as a [CodeCharta](https://codecharta.com/) 1.3 `cc.json` file - as
-part of the normal `jscpd` run, no separate conversion step, no intermediate
-`jscpd-report.json` round-trip.
+Convert a [jscpd](https://jscpd.dev/) JSON clone-detection report into a
+mergeable [CodeCharta](https://codecharta.com/) 1.3 `cc.json` file.
 
 Each duplicated file becomes a CodeCharta leaf annotated with clone metrics;
 each pair of files that share a clone becomes one aggregated, symmetric edge
@@ -13,75 +11,76 @@ duplication next to size, complexity, and churn in the same 3D city.
 
 Zero runtime dependencies - only Node.js built-ins (`fs`, `path`, `crypto`).
 
+## Why a separate conversion step, not a jscpd plugin
+
+jscpd v5 (the current, Rust-based release) has no reporter plugin
+mechanism at all: `create_reporter()` in the Rust source
+(`rust/crates/cpd-reporter`) matches reporter names against a fixed,
+compiled-in list (`console`, `json`, `xml`, `csv`, `html`, `markdown`,
+`badge`, `sarif`, `ai`, `xcode`, `threshold`, `silent`, `console-full`) and
+silently returns nothing for anything else - confirmed by running it. The
+older TypeScript-based jscpd (v4.x) *did* support external reporter packages
+(`@jscpd/<name>-reporter` / `jscpd-<name>-reporter`), but that mechanism no
+longer exists in what's published as `jscpd` on npm today.
+
+So the only viable integration point is consuming one of the built-in
+reporters' output - `json` - and post-processing it, which is exactly what
+this script does. Verified against jscpd 5.0.15: the
+`duplicates[].firstFile/secondFile.{name,start,end}` shape is unchanged from
+earlier jscpd versions.
+
 ## Requirements
 
 - Node.js >= 16
-- `jscpd` v3 or later (the current `@jscpd/*` reporter architecture; the
-  `reportersOptions` config key used below has been present since early v3)
+- `jscpd` (any version whose `json` reporter produces the shape above -
+  tested against 5.0.15)
 
 ## Install
 
-This package is **not published to npm**. Install it straight from GitHub:
+```bash
+npm install --save-dev jscpd
+# then just drop jscpd-to-codecharta.js into your project (see below),
+# or clone/copy this repo.
+```
+
+This tool isn't published to npm - it's a single, dependency-free script.
+Copy `jscpd-to-codecharta.js` into your project (e.g. `scripts/`), or add
+this repo as a subtree/submodule.
+
+## Quick start
 
 ```bash
-npm install --save-dev github:<your-github-user>/jscpd-codecharta-reporter
+# 1. Run jscpd, keep absolute paths, ask for the json reporter
+npx jscpd --config .jscpd.json --reporters json --output reports/jscpd src
+
+# 2. Convert the report - run from the same directory as jscpd (see
+#    "Merging maps" below for why that matters)
+node jscpd-to-codecharta.js reports/jscpd/jscpd-report.json \
+  --output reports/jscpd/codecharta-clones.cc.json \
+  --project-root .
 ```
 
-(Replace `<your-github-user>/jscpd-codecharta-reporter` with wherever you
-push this repo.) npm names the installed folder after the `name` field in
-`package.json`, so it lands in `node_modules/jscpd-codecharta-reporter`
-regardless of the GitHub path - which matters, see "How discovery works"
-below.
+```
+Usage: jscpd-to-codecharta [report] [options]
 
-## Configure
+Arguments:
+  report                    jscpd JSON report (default: reports/jscpd/jscpd-report.json)
 
-Add `"codecharta"` to `.jscpd.json`'s `reporters`, and (optionally) tune it
-via `reportersOptions.codecharta`:
-
-```json
-{
-  "reporters": ["console", "codecharta"],
-  "reportersOptions": {
-    "codecharta": {
-      "projectRoot": ".",
-      "projectName": "myproject clones",
-      "output": "reports/jscpd/codecharta-clones.cc.json"
-    }
-  },
-  "output": "reports/jscpd",
-  "absolute": true
-}
+Options:
+  -o, --output <path>       CodeCharta output file (default: reports/jscpd/codecharta-clones.cc.json)
+  --project-root <path>     source repository root used to create /root/... CodeCharta
+                            paths (default: current directory)
+  --project-name <name>     CodeCharta project name (default: "<project-root name> clones")
+  -h, --help                show this help
 ```
 
-All three `codecharta` options are optional:
+See `examples/` for ready-to-use configs and a full pipeline script:
 
-| Option        | Default                                          | Purpose                                                                 |
-|---------------|---------------------------------------------------|--------------------------------------------------------------------------|
-| `projectRoot` | `process.cwd()`                                    | Root used to turn file paths into CodeCharta's `/root/...` node paths   |
-| `projectName` | `"<basename of projectRoot> clones"`               | CodeCharta project name                                                 |
-| `output`      | `"<jscpd `output` dir>/codecharta-clones.cc.json"` | Where the `cc.json` file is written                                     |
-
-`"absolute": true` (jscpd's own top-level option) is recommended so clone
-locations carry absolute file paths - this reporter also resolves relative
-ones against `projectRoot`, but absolute paths avoid any ambiguity about
-which directory jscpd was run from.
-
-## Run
-
-```bash
-npx jscpd --config .jscpd.json src/
-```
-
-jscpd prints its usual console/other reports, and this reporter additionally
-logs e.g.:
-
-```
-[jscpd-codecharta-reporter] wrote 42 clone-annotated files and 17 clone-coupling edges to reports/jscpd/codecharta-clones.cc.json
-```
-
-See `examples/.jscpd.json` for a complete example config (Java/JS/JSP/XML,
-weak clone detection mode, `equals`/`hashCode` boilerplate excluded via
-`ignorePattern` - adjust to your stack).
+- `examples/minimal.jscpd.json` - smallest config to get started
+- `examples/openclinica.jscpd.json` - a real-world config (Java/JS/JSP/XML,
+  weak mode, `equals`/`hashCode`/import-statement boilerplate excluded)
+- `examples/build-codecharta-map.sh` - full pipeline: jscpd -> convert ->
+  merge with source metrics -> validate
 
 ## jscpd usage hints
 
@@ -89,14 +88,22 @@ weak clone detection mode, `equals`/`hashCode` boilerplate excluded via
   spotting copy-paste-and-rename duplication); `"strict"` requires an exact
   token match.
 - `minTokens`/`minLines` are your noise floor - too low and you drown in
-  trivial matches (getters/setters, imports); too high and small-but-real
-  duplication hides.
-- `ignorePattern` (regex, matched against file content) is the escape hatch
-  for structurally-required boilerplate that isn't really "duplication"
-  (e.g. generated `equals`/`hashCode`, license headers).
-- Run jscpd from the same directory (or use `absolute: true` +
-  `reportersOptions.codecharta.projectRoot`) every time, so `cc.json`s from
-  different runs stay mergeable (stable `/root/...` node paths).
+  trivial matches (getters/setters); too high and small-but-real duplication
+  hides.
+- `ignorePattern` (regex, matched against file content, skips overlapping
+  tokens) is the escape hatch for structurally-required boilerplate that
+  isn't really "duplication". For Java, two patterns are worth having by
+  default (both in `examples/openclinica.jscpd.json`):
+  - generated `equals`/`hashCode` method bodies
+  - `import` statements - large, near-identical import blocks across files
+    otherwise create clone matches that say nothing about actual logic
+    duplication:
+    ```json
+    "(?m)^\\s*import[\\t ]+(?:static[\\t ]+)?[A-Za-z_$][\\w.$]*(?:\\.\\*)?;[\\t ]*$"
+    ```
+- Always run jscpd with `"absolute": true` (or `--absolute`). This reporter
+  resolves relative paths against `--project-root` too, but absolute paths
+  remove any ambiguity about which directory jscpd was invoked from.
 
 ## CodeCharta usage hints
 
@@ -106,15 +113,36 @@ Once you have a `.cc.json`:
   visualization](https://codecharta.com/) - no install needed.
 - **Local viewer**: `npm install -g codecharta-analysis`, then
   `ccsh gui reports/jscpd/codecharta-clones.cc.json`.
-- **Merge with other maps** (source metrics, git history, ...):
-  ```bash
-  ccsh merge --not-compressed --output-file=complete.cc.json \
-    reports/jscpd/codecharta-clones.cc.json \
-    reports/other-map.cc.json
-  ```
 - **Validate** a map: `ccsh check reports/jscpd/codecharta-clones.cc.json`.
 
-### Metrics this reporter emits
+### Merging maps - making sure the paths line up
+
+`ccsh merge` matches nodes purely by their **full path** (root name +
+folder chain + file name). For a clone map to merge cleanly into a
+source-metrics or git-history map (rather than creating a parallel,
+un-merged tree), every tool involved must resolve relative paths against
+the **same root**:
+
+| Tool                        | Path reference point                              |
+|------------------------------|----------------------------------------------------|
+| `ccsh unifiedparser <path>`  | the `<path>` argument (typically `.` from repo root)|
+| `ccsh gitlogparser`          | the git repository root (`git log` paths always are)|
+| `jscpd-to-codecharta.js`     | `--project-root` (default: current directory)       |
+
+Practical rule: **run all three from the same directory** (your repository
+root) and pass `--project-root .` explicitly. Verified end-to-end: running
+`ccsh unifiedparser .`, this converter with `--project-root .`, and `ccsh
+merge` on the same project reports `N nodes were processed, 0 were added
+and N were merged` - i.e. every file's clone attributes land on the exact
+same node as its source metrics, and clone-coupling edges are preserved.
+
+```bash
+ccsh merge --not-compressed --output-file=complete.cc.json \
+  reports/jscpd/source.cc.json \
+  reports/jscpd/codecharta-clones.cc.json
+```
+
+### Metrics this tool produces
 
 Node (file) attributes:
 
@@ -136,34 +164,6 @@ Edge (clone coupling between two files) attributes:
 In CodeCharta, map `clone_coverage` or `duplicated_lines` to a color metric
 to spot duplication hot spots, and enable edges to see which files are
 copy-paste-coupled to each other.
-
-## How discovery works (why the package name matters)
-
-jscpd resolves a reporter name that isn't one of its built-ins
-(`console`, `json`, `xml`, ...) like this (from jscpd's
-`apps/jscpd/src/init/reporters.ts`):
-
-```js
-try {
-  require(`@jscpd/${reporter}-reporter`).default
-} catch {
-  require(`jscpd-${reporter}-reporter`).default
-}
-```
-
-So `"reporters": ["codecharta"]` only resolves automatically if a package
-literally named `jscpd-codecharta-reporter` is installed (the `@jscpd/*`
-npm scope belongs to jscpd's maintainer, not to third-party reporters).
-jscpd then does `new (required).default(options)` and calls
-`.report(clones, statistic)` on it - implemented here in `index.js`.
-
-`clones` is an array of jscpd's internal `IClone` objects
-(`duplicationA`/`duplicationB`, each with `sourceId` and `start`/`end` as
-`{ line, column?, position? }`), which is a different shape than the
-`firstFile`/`secondFile`/plain-number-`start`/`end` shape you get from
-jscpd's own JSON report file - that shape is produced by jscpd's built-in
-`JsonReporter`, not by jscpd itself. This reporter adapts directly from
-`IClone` (see `toClonePair` in `index.js`).
 
 ## Development
 
