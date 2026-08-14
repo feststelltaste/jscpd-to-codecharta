@@ -31,7 +31,7 @@ const JSCPD_DOCUMENTATION = 'https://jscpd.dev/';
 class ConversionError extends Error {}
 
 function printHelp() {
-  console.log(`Usage: jscpd-to-codecharta [report] [options]
+  console.log(`Usage: jscpd-to-cc [report] [options]
 
 Convert a jscpd JSON report to CodeCharta 1.3 cc.json.
 

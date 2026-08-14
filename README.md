@@ -39,13 +39,21 @@ earlier jscpd versions.
 
 ```bash
 npm install --save-dev jscpd
-# then just drop jscpd-to-codecharta.js into your project (see below),
+# then just drop jscpd-to-cc.js into your project (see below),
 # or clone/copy this repo.
 ```
 
 This tool isn't published to npm - it's a single, dependency-free script.
-Copy `jscpd-to-codecharta.js` into your project (e.g. `scripts/`), or add
-this repo as a subtree/submodule.
+Either copy `jscpd-to-cc.js` into your project (e.g. `scripts/`) and
+run it with `node`, or install it as a `jscpd-to-cc` command:
+
+```bash
+# global CLI command, from this repo's directory
+npm link
+
+# or as a devDependency in another project, from that project's directory
+npm install --save-dev /path/to/jscpd-to-codecharta
+```
 
 ## Quick start
 
@@ -55,7 +63,7 @@ jscpd --config .jscpd.json --reporters json --output reports/jscpd src
 
 # 2. Convert the report - run from the same directory as jscpd (see
 #    "Merging maps" below for why that matters)
-node jscpd-to-codecharta.js reports/jscpd/jscpd-report.json \
+node jscpd-to-cc.js reports/jscpd/jscpd-report.json \
   --output reports/jscpd/codecharta-clones.cc.json \
   --project-root .
 ```
@@ -75,7 +83,7 @@ mkdir -p "$OUTPUT_DIR"
 jscpd --config "$JSCPD_CONFIG" --reporters json --output "$OUTPUT_DIR" src
 
 # 2. Convert to CodeCharta
-node jscpd-to-codecharta.js "$OUTPUT_DIR/jscpd-report.json" \
+node jscpd-to-cc.js "$OUTPUT_DIR/jscpd-report.json" \
   --output "$OUTPUT_DIR/codecharta-clones.cc.json" --project-root .
 
 # 3. Extract source metrics (size, complexity, ...)
@@ -154,7 +162,7 @@ the **same root**:
 |------------------------------|----------------------------------------------------|
 | `ccsh unifiedparser <path>`  | the `<path>` argument (typically `.` from repo root)|
 | `ccsh gitlogparser`          | the git repository root (`git log` paths always are)|
-| `jscpd-to-codecharta.js`     | `--project-root` (default: current directory)       |
+| `jscpd-to-cc.js`     | `--project-root` (default: current directory)       |
 
 Practical rule: **run all three from the same directory** (your repository
 root) and pass `--project-root .` explicitly. Verified end-to-end: running

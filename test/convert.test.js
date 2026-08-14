@@ -15,7 +15,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const CLI_PATH = path.join(__dirname, '..', 'jscpd-to-codecharta.js');
+const CLI_PATH = path.join(__dirname, '..', 'jscpd-to-cc.js');
 
 function withTempProject(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jscpd-to-codecharta-'));
