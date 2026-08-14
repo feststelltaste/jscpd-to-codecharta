@@ -106,7 +106,7 @@ Options:
 See `examples/` for ready-to-use configs:
 
 - `examples/minimal.jscpd.json` - smallest config to get started
-- `examples/openclinica.jscpd.json` - a real-world config (Java/JS/JSP/XML,
+- `examples/java-js-enterprise-webapp.jscpd.json` - a real-world config (Java/JS/JSP/XML,
   weak mode, `equals`/`hashCode`/import-statement boilerplate excluded)
 
 ## jscpd usage hints
@@ -120,7 +120,7 @@ See `examples/` for ready-to-use configs:
 - `ignorePattern` (regex, matched against file content, skips overlapping
   tokens) is the escape hatch for structurally-required boilerplate that
   isn't really "duplication". For Java, two patterns are worth having by
-  default (both in `examples/openclinica.jscpd.json`):
+  default (both in `examples/java-js-enterprise-webapp.jscpd.json`):
   - generated `equals`/`hashCode` method bodies
   - `import` statements - large, near-identical import blocks across files
     otherwise create clone matches that say nothing about actual logic
