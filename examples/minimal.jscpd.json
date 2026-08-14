@@ -4,7 +4,7 @@
   "mode": "weak",
   "format": ["java", "javascript"],
   "pattern": "**/*.{java,js}",
-  "reporters": ["console", "json"],
+  "reporters": ["console", "json", "html"],
   "output": "reports",
   "absolute": true
 }

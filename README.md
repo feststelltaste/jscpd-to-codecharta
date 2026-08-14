@@ -47,8 +47,9 @@ npm install --save-dev /path/to/jscpd-to-codecharta
 ## Quick start
 
 ```bash
-# 1. Run jscpd, keep absolute paths, ask for the json reporter
-jscpd --config .jscpd.json --reporters json --output reports src
+# 1. Run jscpd, keep absolute paths, ask for the json reporter (html is
+#    optional - adds a human-browsable reports/jscpd-report.html)
+jscpd --config .jscpd.json --reporters json,html --output reports src
 
 # 2. Convert the report - run from the same directory as jscpd (see
 #    "Merging maps" below for why that matters)
@@ -71,7 +72,7 @@ codecharta-analysis`.
 mkdir -p reports
 
 # 1. Detect clones
-jscpd --config .jscpd.json --reporters json --output reports src
+jscpd --config .jscpd.json --reporters json,html --output reports src
 
 # 2. Convert to CodeCharta
 jscpd-to-cc reports/jscpd-report.json \
