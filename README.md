@@ -62,6 +62,119 @@ jscpd-to-cc reports/jscpd-report.json \
 `npm install -g/--save-dev`. Without that, run `node jscpd-to-cc.js ...`
 against a copy of the script instead.)
 
+### One-shot: the whole pipeline as a script
+
+Copy `jscpd-to-cc-pipeline.sh` into the root of the repository you want to
+analyse and run it there - it performs every step below in order, skipping
+the git metrics if the directory is not a git repository:
+
+```bash
+cp /path/to/jscpd-to-codecharta/jscpd-to-cc-pipeline.sh .
+./jscpd-to-cc-pipeline.sh
+```
+
+It writes `reports/complete.cc.json`.
+
+```
+Usage: jscpd-to-cc-pipeline.sh [options]
+
+Options:
+  -o, --output-dir <path>   where to write all reports (default: reports)
+  -n, --project-name <name> CodeCharta project name (default: current dir name)
+  -g, --git <mode>          how much git history goes into the map:
+                              metrics  per-file history metrics (age, churn,
+                                       number of authors), but no temporal-
+                                       coupling edges (default)
+                              all      also keep the temporal-coupling edges
+                              none     skip git entirely - fastest, and the
+                                       only option outside a git repository
+  -h, --help                show this help
+```
+
+If you did not install this package globally, point `JSCPD_TO_CC_DIR` at your
+checkout so the script finds `jscpd-to-cc.js`, `fix-merged-edges.js` and
+`strip-edges.js`:
+
+```bash
+JSCPD_TO_CC_DIR=/path/to/jscpd-to-codecharta ./jscpd-to-cc-pipeline.sh
+```
+
+The script and the command list below are kept in sync by
+`test/pipeline-sync.test.js`.
+
+#### Why `--git metrics` is the default
+
+**Short version: git history metrics are in the map by default. Only the
+temporal-coupling *edges* are left out, because mixing two kinds of edges makes
+both unreadable.**
+
+A merged map can contain two completely different kinds of coupling:
+
+| Edge metric | From | Means |
+|---|---|---|
+| `clone_coupling`, `shared_clone_lines` | this converter | these two files contain the same code |
+| `temporal_coupling` | `ccsh gitlogparser` | these two files are usually changed together |
+
+They answer different questions, and the visualization cannot keep them apart.
+When you select a building, `codeMap.arrow.service.ts` draws **every** edge
+attached to it, matching purely on node path:
+
+```typescript
+if (originNode && targetNode && originNode.path === node.path) {
+    this.addArrow(targetNode, originNode, true)
+}
+```
+
+`edge.attributes[edgeMetric]` is never consulted. The selected edge metric only
+decides *whether* edges are drawn at all (`edgeMetric !== "None"`), never
+*which* ones. So with both metrics in one map:
+
+- Selecting `shared_clone_lines` and clicking a file shows its temporal-coupling
+  edges too - even for a file that contains no clone at all.
+- You cannot tell from the picture which arrow means what.
+
+That was observed on a real map: `global_functions_javascript.js` has three
+`temporal_coupling` edges, no clone data whatsoever, and still drew three arrows
+under the `shared_clone_lines` edge metric.
+
+`--git metrics` therefore runs `strip-edges` on the gitlogparser map before
+merging. That removes its edges and keeps every node attribute, so the map still
+carries `number_of_authors`, `number_of_commits`, `age_in_weeks`,
+`weeks_with_commits` and the rest of the history metrics - only the arrows are
+gone. Every arrow you then see is a clone coupling.
+
+The untouched `reports/git.cc.json` is still written. To look at temporal
+coupling, open that file as its own map, or run the pipeline again with
+`--git all`.
+
+A second reason for the default: with only one map carrying edges, the
+`ccsh merge` bug described under "Merging maps" cannot bite, because nothing
+collides. With `--git all` the pipeline runs `fix-merged-edges` to repair it.
+
+`--git none` skips the history extraction altogether. Scanning the git log is
+the slowest step on a large repository - on OpenClinica it is a 10 MB log - so
+it is worth reaching for while iterating on the clone configuration. The cost is
+that `age_in_weeks`, `number_of_authors`, `number_of_commits` and the other
+history metrics are then missing from the map.
+
+#### Notes for tuning the scope
+
+The script analyses everything, which is the right default for a first look but
+usually not what you want on a large repository:
+
+- **jscpd** follows your `.jscpd.json` (patterns, ignores) but is not given
+  explicit paths, so it scans the whole tree. If you only care about, say,
+  `core/src/main`, add that to the config's `pattern`.
+- **`ccsh unifiedparser`** is run without `--file-extensions`, so it parses
+  every language it supports.
+- **`git log`** is run without a pathspec, so *every tracked file* gets history
+  metrics. On OpenClinica that pulled 5385 files into the map, of which 2539
+  were `.gif` - files with git history but no source metrics, drowning out the
+  1362 files that actually carry code metrics.
+
+If that is too broad, restrict the `git log` line and add `--file-extensions` to
+the `unifiedparser` line in your copy of the script.
+
 ### Full pipeline: clones + source metrics in one map
 
 All commands below must run from the same directory (your repository root) -
@@ -87,9 +200,20 @@ git ls-files > reports/git-files.txt
 ccsh gitlogparser log-scan --git-log=reports/git.log --repo-files=reports/git-files.txt \
   --not-compressed --output-file=reports/git.cc.json
 
-# 4. Merge all maps into one (drop reports/git.cc.json here if you skipped 3b)
+# 3c. Keep the git history metrics, drop the temporal-coupling edges, so that
+#     clone coupling is the only kind of edge in the map (see "Why --git
+#     metrics is the default"). Skip this to keep both kinds.
+strip-edges reports/git.cc.json --output reports/git-metrics-only.cc.json
+
+# 4. Merge all maps into one (drop the git map here if you skipped 3b)
 ccsh merge --not-compressed --output-file=reports/complete.cc.json \
-  reports/source.cc.json reports/git.cc.json reports/codecharta-clones.cc.json
+  reports/source.cc.json reports/git-metrics-only.cc.json \
+  reports/codecharta-clones.cc.json
+
+# 4b. Only needed if more than one input map carries edges, i.e. if you skipped
+#     3c: repair the edge attributes "ccsh merge" drops (see "Merging maps")
+fix-merged-edges reports/complete.cc.json \
+  reports/git.cc.json reports/codecharta-clones.cc.json
 
 # 5. Validate
 ccsh check reports/complete.cc.json
@@ -178,6 +302,52 @@ ccsh merge --not-compressed --output-file=reports/complete.cc.json \
   reports/codecharta-clones.cc.json
 ```
 
+### Merging maps - `ccsh merge` drops edge attributes
+
+If two input maps contain an edge with the same `fromNodeName`/`toNodeName`,
+`ccsh merge` keeps only the attributes of the **first** input file and
+discards the other's - even when the attribute names are disjoint and a
+lossless union would be possible. Node attributes in the same merge are
+unioned correctly, so the result is a map whose files claim to have clones
+while the edges carrying those clones are gone.
+
+This bites as soon as a `gitlogparser` map joins a clone map, because a pair
+of files that were changed together is often also a copy-paste pair. On
+OpenClinica (~4000 Java files), merging 1697 `temporal_coupling` edges into
+3440 clone edges silently lost 148 of the clone edges - about 4%.
+
+`fix-merged-edges.js` repairs this. Run it after `ccsh merge` and before
+`ccsh check`, passing the same source maps that were merged:
+
+```bash
+fix-merged-edges reports/complete.cc.json \
+  reports/git.cc.json reports/codecharta-clones.cc.json
+```
+
+It only fills in attributes that are **missing** from a merged edge, never
+overwriting a value ccsh picked, and it restores the matching
+`attributeTypes.edges` and `attributeDescriptors` entries. The file is
+rewritten with a fresh checksum, so the following `ccsh check` validates the
+repaired map.
+
+```
+Usage: fix-merged-edges <merged> <source>... [options]
+
+Arguments:
+  merged                    cc.json produced by "ccsh merge"
+  source                    the cc.json files that were merged, in the same
+                            order they were passed to "ccsh merge"
+
+Options:
+  -o, --output <path>       write result here (default: overwrite <merged>)
+  -h, --help                show this help
+```
+
+Verified against `ccsh` 1.143.0. The fix exists upstream in
+`DependencyLens.mergeEdges`, but only on `main` as part of the unreleased
+cc.json 2.0 lens rewrite - which no released toolchain reads - so this
+workaround stays necessary until 2.0 ships.
+
 ### Metrics this tool produces
 
 Node (file) attributes:
@@ -188,6 +358,15 @@ Node (file) attributes:
 | `duplicated_lines`      | Unique physical lines covered by at least one clone                              |
 | `clone_instance_count`  | Number of unique cloned line ranges in the file                                  |
 | `clone_pair_count`      | Number of jscpd clone pairs involving the file                                   |
+| `clone_partner_count`   | Number of *other files* the file shares at least one clone with                  |
+
+`clone_pair_count` and `clone_partner_count` answer different questions and
+routinely differ. A file with three clone pairs against the same neighbour has
+`clone_pair_count: 3` but `clone_partner_count: 1` - one copy-paste relationship,
+found in three places. A file with `clone_partner_count: 12` is the opposite
+case: its code is scattered across twelve other files, which is the shape worth
+hunting for when you look for something to extract. A clone jscpd found *inside*
+a single file raises `clone_pair_count` but adds no partner.
 
 Edge (clone coupling between two files) attributes:
 
@@ -201,11 +380,34 @@ In CodeCharta, map `clone_coverage` or `duplicated_lines` to a color metric
 to spot duplication hot spots, and enable edges to see which files are
 copy-paste-coupled to each other.
 
+#### Clone edges are undirected - show both directions
+
+A clone pair has no direction: all three attributes are symmetric
+(`shared_clone_lines` is the minimum of both sides, `clone_coupling` is
+normalised against the *smaller* file), and each pair yields exactly one edge.
+Which file ends up as `fromNodeName` is decided by sorting the two paths
+lexicographically, so "outgoing" only means "the alphabetically earlier path".
+
+The visualization does not know that. It colours incoming and outgoing edges
+differently and lets you show them separately - so a view restricted to one
+direction hides part of every file's clone partners, filtered by nothing but
+the alphabet. **Enable both directions**, or set both edge colours to the same
+value.
+
+This differs from `ccsh gitlogparser`, whose `temporal_coupling` edges *are*
+directed: it writes both directions with different values (how often B changed
+with A is not how often A changed with B). In a merged map the two edge types
+therefore behave differently, which is expected, not a defect.
+
 ## Development
 
 ```bash
-npm test   # plain-Node smoke test, no framework, no install needed
+npm test   # plain-Node smoke tests, no framework, no install needed
 ```
+
+Four suites run: the converter smoke test, the `fix-merged-edges` repair test,
+the `strip-edges` test, and a check that `jscpd-to-cc-pipeline.sh` and the
+README's pipeline section still list the same steps.
 
 ## Background: Why a separate conversion step, not a jscpd plugin
 
