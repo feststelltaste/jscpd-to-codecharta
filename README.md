@@ -60,6 +60,35 @@ node jscpd-to-codecharta.js reports/jscpd/jscpd-report.json \
   --project-root .
 ```
 
+### Full pipeline: clones + source metrics in one map
+
+All commands below must run from the same directory (your repository root) -
+see "Merging maps" for why. `ccsh` comes from `npm install -g
+codecharta-analysis`.
+
+```bash
+JSCPD_CONFIG=.jscpd.json
+OUTPUT_DIR=reports/jscpd
+mkdir -p "$OUTPUT_DIR"
+
+# 1. Detect clones
+npx jscpd --config "$JSCPD_CONFIG" --reporters json --output "$OUTPUT_DIR" src
+
+# 2. Convert to CodeCharta
+node jscpd-to-codecharta.js "$OUTPUT_DIR/jscpd-report.json" \
+  --output "$OUTPUT_DIR/codecharta-clones.cc.json" --project-root .
+
+# 3. Extract source metrics (size, complexity, ...)
+ccsh unifiedparser --not-compressed --output-file="$OUTPUT_DIR/source.cc.json" .
+
+# 4. Merge both maps into one
+ccsh merge --not-compressed --output-file="$OUTPUT_DIR/complete.cc.json" \
+  "$OUTPUT_DIR/source.cc.json" "$OUTPUT_DIR/codecharta-clones.cc.json"
+
+# 5. Validate
+ccsh check "$OUTPUT_DIR/complete.cc.json"
+```
+
 ```
 Usage: jscpd-to-codecharta [report] [options]
 
@@ -74,13 +103,11 @@ Options:
   -h, --help                show this help
 ```
 
-See `examples/` for ready-to-use configs and a full pipeline script:
+See `examples/` for ready-to-use configs:
 
 - `examples/minimal.jscpd.json` - smallest config to get started
 - `examples/openclinica.jscpd.json` - a real-world config (Java/JS/JSP/XML,
   weak mode, `equals`/`hashCode`/import-statement boilerplate excluded)
-- `examples/build-codecharta-map.sh` - full pipeline: jscpd -> convert ->
-  merge with source metrics -> validate
 
 ## jscpd usage hints
 
