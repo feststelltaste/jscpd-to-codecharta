@@ -52,10 +52,14 @@ jscpd --config .jscpd.json --reporters json --output reports src
 
 # 2. Convert the report - run from the same directory as jscpd (see
 #    "Merging maps" below for why that matters)
-node jscpd-to-cc.js reports/jscpd-report.json \
+jscpd-to-cc reports/jscpd-report.json \
   --output reports/codecharta-clones.cc.json \
   --project-root .
 ```
+
+(`jscpd-to-cc` requires the CLI install from above - `npm link` or
+`npm install -g/--save-dev`. Without that, run `node jscpd-to-cc.js ...`
+against a copy of the script instead.)
 
 ### Full pipeline: clones + source metrics in one map
 
@@ -70,7 +74,7 @@ mkdir -p reports
 jscpd --config .jscpd.json --reporters json --output reports src
 
 # 2. Convert to CodeCharta
-node jscpd-to-cc.js reports/jscpd-report.json \
+jscpd-to-cc reports/jscpd-report.json \
   --output reports/codecharta-clones.cc.json --project-root .
 
 # 3. Extract source metrics (size, complexity, ...)
