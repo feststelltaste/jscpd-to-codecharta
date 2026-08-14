@@ -75,26 +75,24 @@ see "Merging maps" for why. `ccsh` comes from `npm install -g
 codecharta-analysis`.
 
 ```bash
-JSCPD_CONFIG=.jscpd.json
-OUTPUT_DIR=reports/jscpd
-mkdir -p "$OUTPUT_DIR"
+mkdir -p reports/jscpd
 
 # 1. Detect clones
-jscpd --config "$JSCPD_CONFIG" --reporters json --output "$OUTPUT_DIR" src
+jscpd --config .jscpd.json --reporters json --output reports/jscpd src
 
 # 2. Convert to CodeCharta
-node jscpd-to-cc.js "$OUTPUT_DIR/jscpd-report.json" \
-  --output "$OUTPUT_DIR/codecharta-clones.cc.json" --project-root .
+node jscpd-to-cc.js reports/jscpd/jscpd-report.json \
+  --output reports/jscpd/codecharta-clones.cc.json --project-root .
 
 # 3. Extract source metrics (size, complexity, ...)
-ccsh unifiedparser --not-compressed --output-file="$OUTPUT_DIR/source.cc.json" .
+ccsh unifiedparser --not-compressed --output-file=reports/jscpd/source.cc.json .
 
 # 4. Merge both maps into one
-ccsh merge --not-compressed --output-file="$OUTPUT_DIR/complete.cc.json" \
-  "$OUTPUT_DIR/source.cc.json" "$OUTPUT_DIR/codecharta-clones.cc.json"
+ccsh merge --not-compressed --output-file=reports/jscpd/complete.cc.json \
+  reports/jscpd/source.cc.json reports/jscpd/codecharta-clones.cc.json
 
 # 5. Validate
-ccsh check "$OUTPUT_DIR/complete.cc.json"
+ccsh check reports/jscpd/complete.cc.json
 ```
 
 ```
