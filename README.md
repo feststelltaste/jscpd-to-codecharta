@@ -94,6 +94,8 @@ ccsh merge --not-compressed --output-file=reports/complete.cc.json \
 ccsh check reports/complete.cc.json
 ```
 
+### CLI reference
+
 ```
 Usage: jscpd-to-cc [report] [options]
 
