@@ -1,8 +1,9 @@
-# jscpd-to-codecharta
+# jscpd to CodeCharta Converter
 
 Convert a [jscpd](https://jscpd.dev/) JSON clone-detection report into a
 mergeable [CodeCharta](https://codecharta.com/) 1.3 `cc.json` file.
 
+## Core idea
 Each duplicated file becomes a CodeCharta leaf annotated with clone metrics;
 each pair of files that share a clone becomes one aggregated, symmetric edge
 ("clone coupling") between them. Merge the result with a source-metrics map
@@ -10,24 +11,6 @@ each pair of files that share a clone becomes one aggregated, symmetric edge
 duplication next to size, complexity, and churn in the same 3D city.
 
 Zero runtime dependencies - only Node.js built-ins (`fs`, `path`, `crypto`).
-
-## Why a separate conversion step, not a jscpd plugin
-
-jscpd v5 (the current, Rust-based release) has no reporter plugin
-mechanism at all: `create_reporter()` in the Rust source
-(`rust/crates/cpd-reporter`) matches reporter names against a fixed,
-compiled-in list (`console`, `json`, `xml`, `csv`, `html`, `markdown`,
-`badge`, `sarif`, `ai`, `xcode`, `threshold`, `silent`, `console-full`) and
-silently returns nothing for anything else - confirmed by running it. The
-older TypeScript-based jscpd (v4.x) *did* support external reporter packages
-(`@jscpd/<name>-reporter` / `jscpd-<name>-reporter`), but that mechanism no
-longer exists in what's published as `jscpd` on npm today.
-
-So the only viable integration point is consuming one of the built-in
-reporters' output - `json` - and post-processing it, which is exactly what
-this script does. Verified against jscpd 5.0.15: the
-`duplicates[].firstFile/secondFile.{name,start,end}` shape is unchanged from
-earlier jscpd versions.
 
 ## Requirements
 
@@ -203,6 +186,24 @@ copy-paste-coupled to each other.
 ```bash
 npm test   # plain-Node smoke test, no framework, no install needed
 ```
+
+## Background: Why a separate conversion step, not a jscpd plugin
+
+jscpd v5 (the current, Rust-based release) has no reporter plugin
+mechanism at all: `create_reporter()` in the Rust source
+(`rust/crates/cpd-reporter`) matches reporter names against a fixed,
+compiled-in list (`console`, `json`, `xml`, `csv`, `html`, `markdown`,
+`badge`, `sarif`, `ai`, `xcode`, `threshold`, `silent`, `console-full`) and
+silently returns nothing for anything else - confirmed by running it. The
+older TypeScript-based jscpd (v4.x) *did* support external reporter packages
+(`@jscpd/<name>-reporter` / `jscpd-<name>-reporter`), but that mechanism no
+longer exists in what's published as `jscpd` on npm today.
+
+So the only viable integration point is consuming one of the built-in
+reporters' output - `json` - and post-processing it, which is exactly what
+this script does. Verified against jscpd 5.0.15: the
+`duplicates[].firstFile/secondFile.{name,start,end}` shape is unchanged from
+earlier jscpd versions.
 
 ## License
 
