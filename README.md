@@ -49,7 +49,7 @@ npm install --save-dev /path/to/jscpd-to-codecharta
 ```bash
 # 1. Run jscpd, keep absolute paths, ask for the json reporter (html is
 #    optional - adds a human-browsable reports/jscpd-report.html)
-jscpd --config .jscpd.json --reporters json,html --output reports src
+jscpd --config .jscpd.json --reporters json,html --output reports <path>
 
 # 2. Convert the report - run from the same directory as jscpd (see
 #    "Merging maps" below for why that matters)
@@ -72,7 +72,7 @@ codecharta-analysis`.
 mkdir -p reports
 
 # 1. Detect clones
-jscpd --config .jscpd.json --reporters json,html --output reports src
+jscpd --config .jscpd.json --reporters json,html --output reports <path>
 
 # 2. Convert to CodeCharta
 jscpd-to-cc reports/jscpd-report.json \
@@ -82,8 +82,8 @@ jscpd-to-cc reports/jscpd-report.json \
 ccsh unifiedparser --not-compressed --output-file=reports/source.cc.json .
 
 # 3b. Optional: extract git history metrics (age, churn, number of authors, ...)
-git log --numstat --raw --topo-order --reverse -m -- src > reports/git.log
-git ls-files -- src > reports/git-files.txt
+git log --numstat --raw --topo-order --reverse -m -- <path> > reports/git.log
+git ls-files -- <path> > reports/git-files.txt
 ccsh gitlogparser log-scan --git-log=reports/git.log --repo-files=reports/git-files.txt \
   --not-compressed --output-file=reports/git.cc.json
 
