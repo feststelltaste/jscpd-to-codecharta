@@ -145,8 +145,6 @@ Once you have a `.cc.json`:
 
 - **Visualize directly**: upload it at the [CodeCharta web
   visualization](https://codecharta.com/) - no install needed.
-- **Local viewer**: `npm install -g codecharta-analysis`, then
-  `ccsh gui reports/codecharta-clones.cc.json`.
 - **Self-hosted web studio** (optional): run it locally via Docker instead -
   `docker run -p 9000:80 codecharta/codecharta-visualization`, then open
   `http://localhost:9000` and load your `.cc.json`.
