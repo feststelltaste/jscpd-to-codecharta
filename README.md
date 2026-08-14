@@ -51,7 +51,7 @@ this repo as a subtree/submodule.
 
 ```bash
 # 1. Run jscpd, keep absolute paths, ask for the json reporter
-npx jscpd --config .jscpd.json --reporters json --output reports/jscpd src
+jscpd --config .jscpd.json --reporters json --output reports/jscpd src
 
 # 2. Convert the report - run from the same directory as jscpd (see
 #    "Merging maps" below for why that matters)
@@ -72,7 +72,7 @@ OUTPUT_DIR=reports/jscpd
 mkdir -p "$OUTPUT_DIR"
 
 # 1. Detect clones
-npx jscpd --config "$JSCPD_CONFIG" --reporters json --output "$OUTPUT_DIR" src
+jscpd --config "$JSCPD_CONFIG" --reporters json --output "$OUTPUT_DIR" src
 
 # 2. Convert to CodeCharta
 node jscpd-to-codecharta.js "$OUTPUT_DIR/jscpd-report.json" \
