@@ -80,9 +80,15 @@ jscpd-to-cc reports/jscpd-report.json \
 # 3. Extract source metrics (size, complexity, ...)
 ccsh unifiedparser --not-compressed --output-file=reports/source.cc.json .
 
-# 4. Merge both maps into one
+# 3b. Optional: extract git history metrics (age, churn, number of authors, ...)
+git log --numstat --raw --topo-order --reverse -m -- src > reports/git.log
+git ls-files -- src > reports/git-files.txt
+ccsh gitlogparser log-scan --git-log=reports/git.log --repo-files=reports/git-files.txt \
+  --not-compressed --output-file=reports/git.cc.json
+
+# 4. Merge all maps into one (drop reports/git.cc.json here if you skipped 3b)
 ccsh merge --not-compressed --output-file=reports/complete.cc.json \
-  reports/source.cc.json reports/codecharta-clones.cc.json
+  reports/source.cc.json reports/git.cc.json reports/codecharta-clones.cc.json
 
 # 5. Validate
 ccsh check reports/complete.cc.json
