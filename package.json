@@ -8,6 +8,14 @@
   },
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/feststelltaste/jscpd-to-codecharta.git"
+  },
+  "homepage": "https://github.com/feststelltaste/jscpd-to-codecharta#readme",
+  "bugs": {
+    "url": "https://github.com/feststelltaste/jscpd-to-codecharta/issues"
+  },
   "scripts": {
     "test": "node test/convert.test.js"
   },

@@ -31,10 +31,16 @@ Either copy `jscpd-to-cc.js` into your project (e.g. `scripts/`) and
 run it with `node`, or install it as a `jscpd-to-cc` command:
 
 ```bash
-# global CLI command, from this repo's directory
+# directly from GitHub, as a devDependency
+npm install --save-dev github:feststelltaste/jscpd-to-codecharta
+
+# or globally, from the same GitHub URL
+npm install -g github:feststelltaste/jscpd-to-codecharta
+
+# or from a local clone, from this repo's directory
 npm link
 
-# or as a devDependency in another project, from that project's directory
+# or as a devDependency in another project, from a local clone's directory
 npm install --save-dev /path/to/jscpd-to-codecharta
 ```
 
